@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Bi-Space Viewer</title>
+    <style>
+        :root {
+            --sidebar-w: 280px;
+            --sidebar-bg: rgba(255,255,255,0.92);
+            --sidebar-border: rgba(0,0,0,0.08);
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; }
+        body { overflow: hidden; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Arial, sans-serif; }
+
+        /* Canvas covers full viewport; sits "under" the sidebar via z-index */
+        canvas { display: block; position: fixed; inset: 0; z-index: 0; }
+
+        /* Sidebar */
+        #sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: var(--sidebar-w);
+            z-index: 10;                /* above canvas */
+            background: var(--sidebar-bg);
+            backdrop-filter: saturate(1.2) blur(2px);
+            border-right: 1px solid var(--sidebar-border);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            gap: 12px;
+            overflow: auto;             /* scroll if content grows */
+            pointer-events: auto;       /* ensure it captures events */
+        }
+
+        #sidebar h2 {
+            font-size: 14px;
+            margin: 0 0 4px;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+
+        .btn {
+            display: inline-block;
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--sidebar-border);
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn:active { transform: translateY(1px); }
+
+        .panel {
+            background: white;
+            border: 1px solid var(--sidebar-border);
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            gap: 10px;
+            margin: 6px 0;
+        }
+
+        /* Optional: nudge canvas content right visually, without affecting raycasting */
+        body::before {
+            content: "";
+            position: fixed;
+            left: var(--sidebar-w);
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            pointer-events: none;
+            z-index: 5;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.06), rgba(0,0,0,0));
+        }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar UI (captures events so they don't reach the canvas) -->
+<aside id="sidebar" aria-label="Controls">
+    <h2>XMI Upload<br/><small>(Offline)</small></h2>
+    <div class="panel">
+        <div class="row">
+            <label for="xmiMode">Mode</label>
+            <select id="xmiMode" style="width:145px;">
+                <option value="single">Single Root</option>
+                <option value="multi">Multi Root</option>
+            </select>
+        </div>
+        <div class="row">
+            <input type="file" id="xmiUpload" accept=".xmi" style="width:100%;" />
+        </div>
+        <button id="uploadXmiBtn" class="btn" style="margin-top:8px;">Upload & Render</button>
+    </div>
+
+    <h2>Samples<br/><small>(Offline)</small></h2>
+    <div class="panel">
+        <button id="fetchSampleModel_A" class="btn" data-stepsize="0.25">Home XRPALS 25cm</button>
+        <button id="fetchSampleModel_B" class="btn" data-stepsize="0.5">Home XRPALS 50cm</button>
+        <button id="fetchSampleModel_0" class="btn" data-stepsize="1.0">CF-Swarmwalker</button>
+    </div>
+
+    <h2><a href="https://github.com/UniAgent-CyberPhysicalAssets/cps.asset.crazyflie/tree/main/controller/cf.PyControl" target="_blank">cf.PyControl Connections</a><br/><small>(Real/Simulated)</small></h2>
+    <div class="panel">
+        <div class="row">
+            <label for="agentSlider">Websockets</label>
+            <span id="agentCountValue">1</span>
+        </div>
+        <input id="agentSlider" type="range" min="1" max="10" step="1" value="1" />
+
+        <div id="agentButtons"></div>
+    </div>
+
+    <h2>Grid<br/><small>(Bigrid-Provider-Service)</small></h2>
+    <div class="panel">
+        <div class="row">
+            <label for="rowsSlider">Rows</label>
+            <span id="rowsValue">5</span>
+        </div>
+        <input id="rowsSlider" type="range" min="1" max="20" step="1" value="5" />
+
+        <div class="row">
+            <label for="colsSlider">Cols</label>
+            <span id="colsValue">5</span>
+        </div>
+        <input id="colsSlider" type="range" min="1" max="20" step="1" value="5" />
+
+        <div class="row">
+            <label for="stepXSlider">Step X</label>
+            <span id="stepXValue">0.5</span>
+        </div>
+        <input id="stepXSlider" type="range" min="0.1" max="2" step="0.1" value="0.5" />
+
+        <div class="row">
+            <label for="stepYSlider">Step Y</label>
+            <span id="stepYValue">0.5</span>
+        </div>
+        <input id="stepYSlider" type="range" min="0.1" max="2" step="0.1" value="0.5" />
+
+        <div class="row">
+            <button id="fetchServiceAPI" class="btn" data-stepsize="0.25" style="margin-top:8px;">Call Service</button>
+        </div>
+    </div>
+
+    <h2>CDO Service</h2>
+    <div class="panel">
+        <div class="row">
+            <label for="cdoHost">Host:Port</label>
+            <input id="cdoHost" type="text" value="127.0.0.1:2036" style="width:140px;" />
+        </div>
+
+        <div class="row">
+            <label for="cdoRepo">Repository + Path</label>
+            <input id="cdoRepo" type="text" value="/repo1/system" style="width:140px;" />
+        </div>
+        <div class="row">
+            <label for="coordAsLinks">Coords as Links</label>
+            <input id="coordAsLinks" type="checkbox" />
+        </div>
+        <div class="row">
+            <button id="connectCDO" class="btn" style="margin-top:8px;">Connect to CDO</button>
+        </div>
+    </div>
+
+</aside>
+
+<!-- Application Module -->
+<script type="module" src="src/main.js" defer></script>
+
+<!-- Hard stop event propagation so nothing bubbles to canvas/OrbitControls -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const sidebar = document.getElementById('sidebar');
+        if (!sidebar) return;
+
+        // Let sidebar controls do their thing, but don't let events leak to the canvas
+        const stopBubble = (e) => {
+            e.stopPropagation();
+        };
+
+        // If you *also* want to suppress the browser's context menu inside the sidebar, use this:
+        const stopBubbleAndPrevent = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+        };
+
+        // Events we want to contain to the sidebar (no leak to canvas)
+        // Use bubble phase (capture: false) so button/input handlers still run.
+        [
+            'click', 'dblclick',
+            'pointerdown', 'pointermove', 'pointerup',
+            'wheel',
+            'touchstart', 'touchmove', 'touchend',
+            'keydown', 'keyup'
+        ].forEach(type => {
+            // Do NOT preventDefault on wheel/touch by default or you'll kill scrolling/gestures.
+            sidebar.addEventListener(type, stopBubble, { capture: false });
+        });
+
+        // Optional: suppress context menu in sidebar too (otherwise omit this)
+        sidebar.addEventListener('contextmenu', stopBubbleAndPrevent, { capture: false });
+
+        // sidebar.addEventListener('click', e => console.log('sidebar click', e.target), { capture: false });
+    });
+</script>
+
+</body>
+</html>
