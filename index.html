@@ -111,13 +111,29 @@
         <button id="fetchSampleModel_0" class="btn" data-stepsize="1.0">CF-Swarmwalker</button>
     </div>
 
-    <h2><a href="https://github.com/UniAgent-CyberPhysicalAssets/cps.asset.crazyflie/tree/main/controller/cf.PyControl" target="_blank">cf.PyControl Connections</a><br/><small>(Real/Simulated)</small></h2>
+    <h2><a href="https://github.com/UniAgent-CyberPhysicalAssets/cps.asset.crazyflie/tree/main/controller/cf.PyControl" target="_blank">Drone Connections</a><br/><small>(Real/Simulated)</small></h2>
     <div class="panel">
         <div class="row">
-            <label for="agentSlider">Websockets</label>
+            <label for="connectionMode">Connection Mode</label>
+            <select id="connectionMode" style="width:145px;">
+                <option value="websocket">WebSocket</option>
+                <option value="ros2">ROS2</option>
+            </select>
+        </div>
+        
+        <div class="row" id="rosHostRow" style="display:none;">
+            <label for="rosBridgeHost">ROS Bridge</label>
+            <input id="rosBridgeHost" type="text" value="localhost:9090" style="width:140px;" />
+        </div>
+        
+        <div class="row">
+            <label for="agentSlider">Drone Count</label>
             <span id="agentCountValue">1</span>
         </div>
-        <input id="agentSlider" type="range" min="1" max="10" step="1" value="1" />
+        <input id="agentSlider" type="range" min="1" max="8" step="1" value="1" />
+        <div style="font-size:11px; color:#666; margin-top:4px;">
+            <span id="droneRangeText">cf231</span>
+        </div>
 
         <div id="agentButtons"></div>
     </div>
@@ -211,7 +227,39 @@
         // Optional: suppress context menu in sidebar too (otherwise omit this)
         sidebar.addEventListener('contextmenu', stopBubbleAndPrevent, { capture: false });
 
-        // sidebar.addEventListener('click', e => console.log('sidebar click', e.target), { capture: false });
+        const connectionModeSelect = document.getElementById('connectionMode');
+        const rosHostRow = document.getElementById('rosHostRow');
+        const agentSlider = document.getElementById('agentSlider');
+        const droneRangeText = document.getElementById('droneRangeText');
+        
+        function updateModeUI() {
+            const mode = connectionModeSelect.value;
+            if (mode === 'ros2') {
+                rosHostRow.style.display = 'grid';
+            } else {
+                rosHostRow.style.display = 'none';
+            }
+            updateDroneRangeText();
+        }
+        
+        function updateDroneRangeText() {
+            const count = +agentSlider.value;
+            const startCf = 231;
+            if (count === 1) {
+                droneRangeText.textContent = `cf${startCf}`;
+            } else {
+                droneRangeText.textContent = `cf${startCf} - cf${startCf + count - 1}`;
+            }
+        }
+        
+        if (connectionModeSelect) {
+            connectionModeSelect.addEventListener('change', updateModeUI);
+        }
+        if (agentSlider) {
+            agentSlider.addEventListener('input', updateDroneRangeText);
+        }
+        
+        updateModeUI();
     });
 </script>
 

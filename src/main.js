@@ -6,6 +6,7 @@ import {fetchCdoModel, fetchGrid} from "./services.js";
 import * as THREE from 'three';
 import {createScene} from "./scene.js";
 import {connectWebSocket, disconnectAllWebSockets} from "./websocket.js";
+import {subscribeMultipleDrones, disconnectAllRosConnections} from "./ros2.js";
 
 const {scene, camera, renderer, controls} = createScene();
 
@@ -28,11 +29,10 @@ const grassMaterial = new THREE.MeshStandardMaterial({color: 0x00ff00});
 let resolutionFactor = 0.2;
 let liveBlock = [];
 let numOfLiveBlocks = 4;
+let connectionMode = "websocket";
+let rosUnsubscribeFunctions = [];
 
-const rowsSlider = bindSlider('rowsSlider', 'rowsValue');
-const colsSlider = bindSlider('colsSlider', 'colsValue');
-const stepXSlider = bindSlider('stepXSlider', 'stepXValue');
-const stepYSlider = bindSlider('stepYSlider', 'stepYValue');
+let rowsSlider, colsSlider, stepXSlider, stepYSlider;
 
 // Add a sample block
 
@@ -96,8 +96,18 @@ function animate() {
 }
 
 function updateLiveBlockPosition([x, y, z], liveBlockIndex = 0) {
-    // Optional: scale position for visibility if needed
     const scale = resolutionFactor;
+    
+    if (!liveBlock || liveBlock.length <= liveBlockIndex) {
+        console.warn(`liveBlock index ${liveBlockIndex} invalid, current length: ${liveBlock ? liveBlock.length : 0}`);
+        return;
+    }
+    
+    if (!liveBlock[liveBlockIndex]) {
+        console.warn(`liveBlock[${liveBlockIndex}] does not exist`);
+        return;
+    }
+    
     liveBlock[liveBlockIndex].position.set(x, y, 1.5);
 }
 
@@ -203,6 +213,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const slider = document.getElementById("agentSlider");
     const valueLabel = document.getElementById("agentCountValue");
     const buttonContainer = document.getElementById("agentButtons");
+    const modeSelect = document.getElementById("connectionMode");
+    const rosHostInput = document.getElementById("rosBridgeHost");
+
+    rowsSlider = bindSlider('rowsSlider', 'rowsValue');
+    colsSlider = bindSlider('colsSlider', 'colsValue');
+    stepXSlider = bindSlider('stepXSlider', 'stepXValue');
+    stepYSlider = bindSlider('stepYSlider', 'stepYValue');
+
+    connectionMode = modeSelect.value;
+
+    modeSelect.addEventListener("change", (e) => {
+        connectionMode = e.target.value;
+        console.log(`Connection mode switched: ${connectionMode}`);
+        renderAgentButtons(+slider.value);
+    });
+
+    rosHostInput.addEventListener("change", () => {
+        if (connectionMode === "ros2") {
+            renderAgentButtons(+slider.value);
+        }
+    });
 
     // Initial render
     renderAgentButtons(+slider.value);
@@ -231,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const uploadInput = document.getElementById("xmiUpload");
     const uploadBtn = document.getElementById("uploadXmiBtn");
-    const modeSelect = document.getElementById("xmiMode");
+    const xmiModeSelect = document.getElementById("xmiMode");
 
     uploadBtn.addEventListener("click", async () => {
         const file = uploadInput.files?.[0];
@@ -242,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // You can load the file locally via Blob URL
         const localUrl = URL.createObjectURL(file);
-        const mode = modeSelect.value;
+        const mode = xmiModeSelect.value;
 
         console.log(`Uploading XMI: ${file.name}, mode: ${mode}`);
 
@@ -377,30 +408,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function renderAgentButtons(count) {
-
         disconnectAllWebSockets();
-        // Clear old buttons
+        disconnectAllRosConnections();
+        rosUnsubscribeFunctions.forEach(unsub => unsub());
+        rosUnsubscribeFunctions = [];
+        
         buttonContainer.innerHTML = "";
 
-        for (let i = 0; i < count; i++) {
-            const btn = document.createElement("button");
-            const port = 8765 + i; // Example: agent 0 → 8765, agent 1 → 8766, etc.
-            const url = `ws://localhost:${port}`;
+        if (connectionMode === "websocket") {
+            for (let i = 0; i < count; i++) {
+                const btn = document.createElement("button");
+                const port = 8765 + i;
+                const url = `ws://localhost:${port}`;
 
-            btn.className = "btn";
-            btn.id = `reconnectBtn_${i}`;
-            btn.textContent = `Reconnect ${url}`;
+                btn.className = "btn";
+                btn.id = `reconnectBtn_${i}`;
+                btn.textContent = `Reconnect ${url}`;
 
-            // Attach generic click handler
-            btn.addEventListener("click", () => {
-                console.log(`Attempting to reconnect WebSocket: ${url}`);
-                connectWebSocket(url, i, updateLiveBlockPosition);
-            });
+                btn.addEventListener("click", () => {
+                    console.log(`Attempting to reconnect WebSocket: ${url}`);
+                    connectWebSocket(url, i, updateLiveBlockPosition);
+                });
 
-            buttonContainer.appendChild(btn);
+                buttonContainer.appendChild(btn);
+            }
+        } else {
+            const rosHost = document.getElementById("rosBridgeHost").value || "localhost:9090";
+            const startCf = 231;
+            
+            console.log(`Connecting ROS2 mode: ${rosHost}, drone count: ${count}, cf${startCf} to cf${startCf + count - 1}`);
+            
+            const unsubscribeFuncs = subscribeMultipleDrones(rosHost, startCf, count, updateLiveBlockPosition);
+            rosUnsubscribeFunctions = unsubscribeFuncs;
+            
+            for (let i = 0; i < count; i++) {
+                const cfNumber = startCf + i;
+                const btn = document.createElement("button");
+                btn.className = "btn";
+                btn.id = `rosStatusBtn_${i}`;
+                btn.textContent = `cf${cfNumber} (ROS2)`;
+                btn.disabled = true;
+                buttonContainer.appendChild(btn);
+            }
         }
 
-        // After buttons are created, initialize live blocks
         numOfLiveBlocks = count;
         initLiveBlock(resolutionFactor, numOfLiveBlocks);
     }
