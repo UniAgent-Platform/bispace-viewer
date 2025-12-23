@@ -35,9 +35,12 @@ export function connectWebSocket(address = "ws://localhost:8765", liveBlockIndex
     socket.addEventListener("message", (event) => {
         try {
             const data = JSON.parse(event.data);
-            const valueArray = JSON.parse(data.value); // parse the stringified array
-            if (Array.isArray(valueArray) && valueArray.length === 3) {
-                onUpdate(valueArray, liveBlockIndex);
+
+            if (data.value) {
+                const valueArray = JSON.parse(data.value);
+                if (Array.isArray(valueArray) && valueArray.length === 3) {
+                    onUpdate(valueArray, liveBlockIndex);
+                }
             }
         } catch (err) {
             console.warn(`Invalid WebSocket data for [${liveBlockIndex}]:`, event.data);
@@ -47,9 +50,6 @@ export function connectWebSocket(address = "ws://localhost:8765", liveBlockIndex
     return socket;
 }
 
-/**
- * Close all sockets
- */
 export function disconnectAllWebSockets() {
     for (const [index, socket] of Object.entries(sockets)) {
         console.log(`Closing WebSocket [${index}]`);

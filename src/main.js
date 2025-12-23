@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import {createScene} from "./scene.js";
 import {connectWebSocket, disconnectAllWebSockets} from "./websocket.js";
 
+import { connectMQTT, disconnectMQTT } from "./mqttClient.js";
+
 const {scene, camera, renderer, controls} = createScene();
 
 const velocity = new THREE.Vector3();
@@ -93,6 +95,19 @@ function animate() {
 
     renderer.render(scene, camera);//!end
     prevTime = time;
+}
+
+function onUpdateBlockAction(data) {
+    if (data.action === 'blink_start' && data.params?.key) {
+        // colour may be a CSS name or #rrggbb
+        const colour = data.params.color || '#ff0000';
+        blockWorld.startBlink(data.params.key, colour);
+        return;
+    }
+    if (data.action === 'blink_stop' && data.params?.key) {
+        blockWorld.stopBlink(data.params.key);
+        return;
+    }
 }
 
 function updateLiveBlockPosition([x, y, z], liveBlockIndex = 0) {
@@ -374,6 +389,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         const y = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
         // console.log(mouse);
+    });
+
+    connectMQTT({
+        url: "ws://localhost:9090",
+        topic: "world/blocks",
+        onMessage: blockWorld.handleMQTTWorldMessage,
     });
 
     function renderAgentButtons(count) {

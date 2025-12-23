@@ -42,6 +42,41 @@ Open the browser at:
 
 Press <kbd>ESC</kbd> to leave the 3D view and take back control.
 
+### Block World Commands
+
+- **Setup:** Install MQTT Server: https://www.atlantic.net/dedicated-server-hosting/how-to-install-mosquitto-mqtt-server-on-ubuntu-24-04/
+- Allow anonymous access + Protocol Websockets
+- Default URL: `mqtt://localhost:1883` and `ws://localhost:9090`
+
+JSON Message:
+- action: name of the action
+- params:
+  - `key`: block coordinates [x, y, z]
+  - `color`: any valid hex color value
+
+#### Start blinking a block 
+
+```shell
+$ mosquitto_pub -t world/blocks -m '{
+"action": "blink_start",
+"params": { "color": "#ff0000", "key": [1,1,0] }
+}'
+$ mosquitto_pub -t world/blocks -m '{
+"action": "blink_start",
+"params": { "color": "#ff0000", "key": [2.50, 0.35, 0.00] }
+}'
+```
+
+#### Stop blinking a block
+
+```shell
+$ mosquitto_pub -t world/blocks -m '{
+"action": "blink_stop",
+"params": { "key": [1,1,0] }
+}'
+```
+
+
 ### More Functions
 
 - Start the [bigrid-provider-service](https://github.com/UniAgent-Platform/bigrid-provider-service) if you plan to
@@ -75,6 +110,7 @@ is very simple and their [usage](https://uniagent-cyberphysicalassets.github.io/
 as well.
 The file parsing logic lives in
 [`BigraphGridXMLParser.js`](src/BigraphGridXMLParser.js).
+
 
 ## Dev-Notes
 
