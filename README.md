@@ -85,6 +85,10 @@ $ mosquitto_pub -t world/blocks -m '{
   See [here](https://github.com/bigraph-toolkit-suite/bigraphs-by-examples.vendingmachine-webservice/blob/main/src/test/java/org.example/CDOStandaloneServerTest.java)
   and [here](https://github.com/bigraph-toolkit-suite/bigraphs-by-examples.vendingmachine-webservice/blob/main/src/main/java/org/example/service/CDOServerService.java)
   for example.
+- The ROS connector relies on [Crazyswarm2](https://github.com/UniAgent-CyberPhysicalAssets/cps.asset.crazyflie/tree/main/simulation/crazyswarm2-ext) and the [JAVA rosbridge](https://github.com/RobotWebTools/rosbridge_suite). Check the tutorial [here](https://bigraphs.org/software/bigraph-framework/tutorials/streamattributes/#prerequisites).
+```shell
+$ ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+```
 
 If these services are not running, some features may be unavailable, but the application will still start and all
 offline functionality will work normally.
